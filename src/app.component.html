@@ -1,0 +1,140 @@
+<div class="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-6 lg:p-8">
+  <div class="max-w-7xl mx-auto">
+    <header class="text-center mb-10">
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight">
+        <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+          ハルシネーション・ファクトチェックAI
+        </span>
+      </h1>
+      <p class="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
+        LLMの回答をナレッジベースと照合し、各文の信憑性を検証します。「Think more」のコンセプトで、AIの回答の根拠を明らかにします。
+      </p>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Input Section -->
+      <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 flex flex-col gap-6">
+        <div>
+          <label for="llm-response" class="block text-lg font-semibold text-gray-700 mb-2">検証対象のLLM回答</label>
+          <textarea
+            id="llm-response"
+            rows="8"
+            class="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 resize-y"
+            placeholder="ここにLLMの回答を貼り付けてください..."
+            [value]="llmResponse()"
+            (input)="onLlmResponseInput($event)"
+          ></textarea>
+        </div>
+        <div>
+          <label for="knowledge-base" class="block text-lg font-semibold text-gray-700 mb-2">ナレッジベース</label>
+          <textarea
+            id="knowledge-base"
+            rows="8"
+            class="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 resize-y"
+            placeholder="信頼できる情報源（社内文書など）をここに貼り付けてください..."
+            [value]="knowledgeBase()"
+            (input)="onKnowledgeBaseInput($event)"
+          ></textarea>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-4">
+           <button
+            (click)="performFactCheck()"
+            [disabled]="!llmResponse() || !knowledgeBase() || isChecking()"
+            class="w-full flex-grow items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            @if (isChecking()) {
+              <div class="flex items-center justify-center">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>検証中...</span>
+              </div>
+            } @else {
+               <div class="flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>ファクトチェック実行</span>
+               </div>
+            }
+          </button>
+          <button
+            (click)="loadExample()"
+            class="w-full sm:w-auto px-6 py-3 border border-gray-300 text-base font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            例文を読込
+          </button>
+        </div>
+      </div>
+
+      <!-- Output Section -->
+      <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">検証結果</h2>
+        
+        @if (isChecking()) {
+          <div class="space-y-4 animate-pulse">
+            <div class="h-16 bg-gray-200 rounded-lg"></div>
+            <div class="h-16 bg-gray-200 rounded-lg"></div>
+            <div class="h-16 bg-gray-200 rounded-lg"></div>
+          </div>
+        } @else if (error()) {
+          <div class="flex items-center p-4 bg-red-100 text-red-700 border border-red-200 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p class="font-semibold">エラーが発生しました</p>
+              <p class="text-sm">{{ error() }}</p>
+            </div>
+          </div>
+        } @else if (checkResult(); as result) {
+            @if (result.length > 0) {
+              <ul class="space-y-3">
+                @for (item of result; track item.sentence) {
+                  <li class="p-4 rounded-lg transition-all duration-300" 
+                      [class]="item.isGrounded ? 'bg-green-50 border-l-4 border-green-500' : 'bg-red-50 border-l-4 border-red-500'">
+                    <p class="text-gray-800 mb-2">「{{ item.sentence }}」</p>
+                    <div class="flex items-center text-sm font-medium">
+                      @if (item.isGrounded) {
+                        <span class="flex items-center text-green-700">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                          </svg>
+                          根拠あり
+                        </span>
+                      } @else {
+                        <span class="flex items-center text-red-700">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                          </svg>
+                          根拠なし (ハルシネーションの可能性)
+                        </span>
+                      }
+                    </div>
+                     <p class="mt-1 text-xs text-gray-500 pl-1">{{ item.reason }}</p>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="text-center py-10 px-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">結果がありません</h3>
+                <p class="mt-1 text-sm text-gray-500">LLMの回答を解析できませんでした。</p>
+              </div>
+            }
+        } @else {
+          <div class="text-center py-10 px-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">検証を開始してください</h3>
+            <p class="mt-1 text-sm text-gray-500">左のフォームに入力し、「ファクトチェック実行」ボタンを押してください。</p>
+          </div>
+        }
+      </div>
+    </main>
+  </div>
+</div>
